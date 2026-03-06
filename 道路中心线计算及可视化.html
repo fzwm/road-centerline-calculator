@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三维道路中心线计算 — 可视化</title>
+<style>
+/* ============ Reset & Base ============ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: #f5f7fa; color: #1e293b; line-height: 1.6;
+}
+a { color: #1a73e8; text-decoration: none; }
+
+/* ============ Header ============ */
+.header {
+  background: #1e293b; color: #fff; padding: 18px 24px;
+  display: flex; align-items: center; gap: 16px;
+}
+.header h1 { font-size: 20px; font-weight: 600; }
+.header .subtitle { font-size: 13px; color: #94a3b8; }
+
+/* ============ Steps ============ */
+.steps {
+  display: flex; justify-content: center; gap: 0; padding: 20px 24px 8px;
+  background: #fff; border-bottom: 1px solid #e2e8f0;
+}
+.step-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 20px;
+  font-size: 14px; color: #94a3b8; position: relative;
+}
+.step-item .num {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #e2e8f0; color: #64748b;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; flex-shrink: 0;
+}
+.step-item.active .num { background: #1a73e8; color: #fff; }
+.step-item.done .num { background: #16a34a; color: #fff; }
+.step-item.active, .step-item.done { color: #1e293b; }
+.step-arrow { color: #cbd5e1; font-size: 18px; margin: 0 4px; }
+
+/* ============ Container & Sections ============ */
+.container { max-width: 1280px; margin: 0 auto; padding: 20px 24px 60px; }
+
+.section {
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 24px;
+  overflow: hidden;
+}
+.section-head {
+  padding: 16px 24px; border-bottom: 1px solid #e2e8f0;
+  display: flex; align-items: center; gap: 12px;
+}
+.section-head h2 { font-size: 17px; font-weight: 600; }
+.section-head .badge {
+  font-size: 11px; background: #e2e8f0; color: #64748b;
+  padding: 2px 10px; border-radius: 12px;
+}
+.section-body { padding: 24px; }
+
+/* ============ Upload Cards ============ */
+.upload-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+@media (max-width: 800px) { .upload-grid { grid-template-columns: 1fr; } }
+
+.upload-card {
+  border: 2px dashed #cbd5e1; border-radius: 10px; padding: 28px 20px;
+  text-align: center; cursor: pointer; transition: all .2s;
+  position: relative;
+}
+.upload-card:hover { border-color: #1a73e8; background: #f8fafc; }
+.upload-card.success { border-color: #16a34a; border-style: solid; background: #f0fdf4; }
+.upload-card.error { border-color: #dc2626; border-style: solid; background: #fef2f2; }
+
+.upload-card .icon { font-size: 32px; margin-bottom: 8px; }
+.upload-card .label { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+.upload-card .desc { font-size: 12px; color: #64748b; }
+.upload-card .file-info { font-size: 12px; color: #16a34a; margin-top: 8px; font-weight: 500; }
+.upload-card .file-error { font-size: 12px; color: #dc2626; margin-top: 8px; }
+.upload-card input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+}
+
+.btn-row { display: flex; gap: 12px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
+
+/* ============ Buttons ============ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 20px; border-radius: 7px; border: none; cursor: pointer;
+  font-size: 14px; font-weight: 500; transition: all .15s;
+}
+.btn-primary { background: #1a73e8; color: #fff; }
+.btn-primary:hover { background: #1557b0; }
+.btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+.btn-secondary { background: #e2e8f0; color: #475569; }
+.btn-secondary:hover { background: #cbd5e1; }
+.btn-success { background: #16a34a; color: #fff; }
+.btn-success:hover { background: #15803d; }
+
+/* ============ Tables ============ */
+.table-wrap {
+  overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;
+  margin-bottom: 16px; max-height: 500px; overflow-y: auto;
+}
+.table-wrap table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+}
+.table-wrap thead { position: sticky; top: 0; z-index: 2; }
+.table-wrap th {
+  background: #f1f5f9; padding: 10px 12px; text-align: left;
+  font-weight: 600; border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+.table-wrap td {
+  padding: 7px 12px; border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+}
+.table-wrap tr:hover td { background: #f8fafc; }
+
+/* Type badges */
+.type-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-weight: 600;
+}
+.type-line { background: #dbeafe; color: #1e40af; }
+.type-circle { background: #fef3c7; color: #92400e; }
+.type-spiral { background: #ede9fe; color: #6d28d9; }
+
+/* ============ Inputs ============ */
+.input-group {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.input-group label { font-size: 13px; font-weight: 500; color: #475569; }
+.input-field {
+  padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;
+  font-size: 14px; width: 140px; outline: none;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+.input-field:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,.15); }
+
+/* ============ Charts ============ */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+@media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+
+.chart-box {
+  border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;
+  background: #fafbfc;
+}
+.chart-box h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #475569; }
+.chart-box canvas { width: 100% !important; height: 300px !important; background: #fff; border-radius: 4px; }
+
+/* ============ Query Results ============ */
+.result-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.result-card {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 12px 16px;
+}
+.result-card .rk { font-size: 11px; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+.result-card .rv {
+  font-size: 18px; font-weight: 700; color: #1e293b;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+/* ============ Details ============ */
+details { margin-top: 8px; }
+details summary {
+  font-size: 13px; color: #64748b; cursor: pointer; user-select: none;
+}
+details pre {
+  background: #f1f5f9; padding: 12px; border-radius: 6px;
+  font-size: 12px; overflow-x: auto; margin-top: 8px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  white-space: pre-wrap; word-break: break-all;
+}
+
+/* ============ Sub-section headers ============ */
+.sub-head { font-size: 15px; font-weight: 600; margin: 20px 0 10px; color: #334155; }
+.sub-head:first-child { margin-top: 0; }
+
+/* ============ Message ============ */
+.msg-info { padding: 12px 16px; background: #eff6ff; border-radius: 6px; color: #1e40af; font-size: 13px; margin-bottom: 16px; }
+.msg-warn { padding: 12px 16px; background: #fefce8; border-radius: 6px; color: #854d0e; font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <h1>三维道路中心线计算</h1>
+    <div class="subtitle">纬地 HintCAD 数据解析 &middot; 三维坐标求解 &middot; 可视化展示</div>
+  </div>
+</div>
+
+<!-- Steps -->
+<div class="steps">
+  <div class="step-item active" id="step1"><span class="num">1</span>数据导入</div>
+  <span class="step-arrow">&#x276F;</span>
+  <div class="step-item" id="step2"><span class="num">2</span>解析结果</div>
+  <span class="step-arrow">&#x276F;</span>
+  <div class="step-item" id="step3"><span class="num">3</span>三维计算</div>
+  <span class="step-arrow">&#x276F;</span>
+  <div class="step-item" id="step4"><span class="num">4</span>里程查询</div>
+</div>
+
+<div class="container">
+
+  <!-- Section 1: Data Import -->
+  <div class="section" id="sec-import">
+    <div class="section-head">
+      <h2>数据导入</h2>
+      <span class="badge">Step 1</span>
+    </div>
+    <div class="section-body">
+      <div class="upload-grid">
+        <!-- PM -->
+        <div class="upload-card" id="card-pm" ondragover="event.preventDefault();this.classList.add('hover')" ondragleave="this.classList.remove('hover')" ondrop="handleDrop(event,'pm')">
+          <div class="icon">&#x1F6E3;</div>
+          <div class="label">平面线元 (.pm)</div>
+          <div class="desc">纬地 HintCAD .pm 文件</div>
+          <div class="file-info" id="pm-info"></div>
+          <div class="file-error" id="pm-error"></div>
+          <input type="file" accept=".pm,.txt" onchange="handleFileSelect(this,'pm')">
+        </div>
+        <!-- ZDM -->
+        <div class="upload-card" id="card-zdm" ondragover="event.preventDefault()" ondrop="handleDrop(event,'zdm')">
+          <div class="icon">&#x1F4C8;</div>
+          <div class="label">纵断面 (.zdm)</div>
+          <div class="desc">纬地 HintCAD .zdm 文件</div>
+          <div class="file-info" id="zdm-info"></div>
+          <div class="file-error" id="zdm-error"></div>
+          <input type="file" accept=".zdm,.ZDM,.txt" onchange="handleFileSelect(this,'zdm')">
+        </div>
+        <!-- SUP -->
+        <div class="upload-card" id="card-sup" ondragover="event.preventDefault()" ondrop="handleDrop(event,'sup')">
+          <div class="icon">&#x21C5;</div>
+          <div class="label">超高数据 (.sup)</div>
+          <div class="desc">纬地 HintCAD .sup 文件</div>
+          <div class="file-info" id="sup-info"></div>
+          <div class="file-error" id="sup-error"></div>
+          <input type="file" accept=".sup,.txt" onchange="handleFileSelect(this,'sup')">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="loadSampleData()">&#x1F4E6; 加载示例数据</button>
+        <button class="btn btn-primary" id="btn-parse" onclick="parseAllData()" disabled>&#x2699; 解析数据</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: Parse Results -->
+  <div class="section" id="sec-results" style="display:none">
+    <div class="section-head">
+      <h2>解析结果</h2>
+      <span class="badge">Step 2</span>
+    </div>
+    <div class="section-body">
+      <!-- PM -->
+      <h3 class="sub-head">平面线元 (PM)</h3>
+      <div class="table-wrap" id="pm-table-wrap"></div>
+      <details><summary>查看标准格式文本</summary><pre id="pm-text-output"></pre></details>
+
+      <!-- ZDM -->
+      <h3 class="sub-head">纵断面变坡点 (ZDM)</h3>
+      <div class="table-wrap" id="zdm-table-wrap"></div>
+      <details><summary>查看标准格式文本</summary><pre id="zdm-text-output"></pre></details>
+
+      <!-- SUP -->
+      <h3 class="sub-head">超高渐变段 (SUP)</h3>
+      <div class="table-wrap" id="sup-table-wrap"></div>
+      <details><summary>查看标准格式文本</summary><pre id="sup-text-output"></pre></details>
+    </div>
+  </div>
+
+  <!-- Section 3: 3D Calculation -->
+  <div class="section" id="sec-calc" style="display:none">
+    <div class="section-head">
+      <h2>三维中心线计算</h2>
+      <span class="badge">Step 3</span>
+    </div>
+    <div class="section-body">
+      <div class="input-group">
+        <label>起始里程</label>
+        <input class="input-field" id="calc-start" value="0+000.000">
+        <label>终止里程</label>
+        <input class="input-field" id="calc-end" value="0+179.142">
+        <label>步长(m)</label>
+        <input class="input-field" id="calc-step" value="10" style="width:80px">
+        <button class="btn btn-primary" id="btn-calc" onclick="runCalculation()">&#x25B6; 开始计算</button>
+        <button class="btn btn-success" id="btn-csv" onclick="exportCSV()" style="display:none">&#x1F4BE; 导出 CSV</button>
+      </div>
+
+      <div id="calc-result-area" style="display:none">
+        <h3 class="sub-head">计算结果</h3>
+        <div class="table-wrap" id="calc-table-wrap" style="max-height:500px"></div>
+
+        <div class="chart-grid">
+          <div class="chart-box">
+            <h3>平面线形图 (X-Y)</h3>
+            <canvas id="chart-plan"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>纵断面图 (里程-高程)</h3>
+            <canvas id="chart-profile"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 4: Station Query -->
+  <div class="section" id="sec-query" style="display:none">
+    <div class="section-head">
+      <h2>里程查询</h2>
+      <span class="badge">Step 4</span>
+    </div>
+    <div class="section-body">
+      <div class="input-group">
+        <label>桩号</label>
+        <input class="input-field" id="query-station" placeholder="0+100.000 或 100" style="width:180px">
+        <button class="btn btn-primary" onclick="runQuery()">&#x1F50D; 查询</button>
+      </div>
+      <div id="query-result-area" style="display:none; margin-top:20px;">
+        <div class="result-grid" id="query-result-grid"></div>
+      </div>
+      <div id="query-error" style="display:none; margin-top:12px;" class="msg-warn"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ================================================================
+//  RoadCalc — 完整计算引擎（合并自四个 Node.js 文件）
+// ================================================================
+var RoadCalc = (function() {
+  'use strict';
+
+  // ---- 共享工具 ----
+  function degToRad(deg) { return (deg * Math.PI) / 180; }
+  function radToDeg(rad) { return (rad * 180) / Math.PI; }
+  function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+  function isFiniteNumber(x) { return typeof x === 'number' && Number.isFinite(x); }
+
+  function parseStation(sta) {
+    var s = String(sta).trim();
+    if (!s) throw new Error('空桩号');
+    if (s.includes('+')) {
+      // 处理负桩号：'-0+090.000' → -90, '-1+500.000' → -1500
+      var negative = s.charAt(0) === '-';
+      var clean = negative ? s.substring(1) : s;
+      var parts = clean.split('+');
+      var km = Number(parts[0]), m = Number(parts[1]);
+      if (!Number.isFinite(km) || !Number.isFinite(m)) throw new Error('桩号解析失败: ' + sta);
+      var result = km * 1000 + m;
+      return negative ? -result : result;
+    }
+    var v = Number(s);
+    if (!Number.isFinite(v)) throw new Error('桩号解析失败: ' + sta);
+    return v;
+  }
+
+  function formatStation(val) {
+    var sign = val < 0 ? '-' : '';
+    var abs = Math.abs(val);
+    var km = Math.floor(abs / 1000);
+    var m = abs - km * 1000;
+    return sign + km + '+' + m.toFixed(3).padStart(7, '0');
+  }
+
+  function cleanLines(text) {
+    return String(text).split(/\r?\n/)
+      .map(function(l) { return l.replace(/\/\/.*$/g, '').replace(/^#.*$/g, '').trim(); })
+      .filter(function(l) { return l.length > 0; });
+  }
+
+  // ================================================================
+  //  PM 原始文件解析器（from pm_parser.js）
+  // ================================================================
+  var PM_TYPE_MAP = { 1: 1, 3: 2, 21: 3, 22: 3 };
+  var PM_TYPE_NAME = { 1: '直线', 2: '圆曲线', 3: '缓和曲线' };
+
+  function parsePmFile(content) {
+    var lines = content.split(/\r?\n/).filter(function(l) { return l.trim() !== ''; });
+
+    var header = lines[0].trim();
+    if (!header.includes('HINTCAD') || !header.includes('PM')) {
+      throw new Error('不是有效的纬地 .pm 文件（文件头标识不匹配）');
+    }
+
+    var globalTokens = lines[1].trim().split(/\s+/).filter(function(t) { return t !== 'NULL'; });
+    var elementCount = parseInt(globalTokens[0]);
+    var globalStartStation = parseFloat(globalTokens[globalTokens.length - 1]);
+
+    var elements = [];
+    var idx = 2;
+
+    // 跳过基础参数行（6字段）
+    var baseLine = lines[idx].trim().split(/\s+/);
+    idx++;
+
+    // 不依赖 elementCount 循环，改为按行类型检测：
+    //   扩展参数行(ext) = 7 字段 → 线元起始，后跟坐标行(8字段)+桩号行(4字段)
+    //   JD分隔行/终止行  = 6 字段 → 跳过
+    while (idx < lines.length) {
+      var tokens = lines[idx].trim().split(/\s+/);
+
+      if (tokens.length === 7) {
+        // 扩展参数行 → 读取三行构成一个线元
+        var ext = tokens;
+        idx++;
+        var typeCode = parseInt(ext[ext.length - 1]);
+        var stdType = PM_TYPE_MAP[typeCode] || typeCode;
+        var val5 = parseFloat(ext[4]);
+        var val6 = parseFloat(ext[5]);
+
+        var coord = lines[idx].trim().split(/\s+/);
+        idx++;
+        var startX = parseFloat(coord[0]);
+        var startY = parseFloat(coord[1]);
+        var endX = parseFloat(coord[4]);
+        var endY = parseFloat(coord[5]);
+
+        var sta = lines[idx].trim().split(/\s+/);
+        idx++;
+        var startStation = parseFloat(sta[0]);
+        var endStation = parseFloat(sta[1]);
+        var startAzRad = parseFloat(sta[2]);
+        var endAzRad = parseFloat(sta[3]);
+        var length = endStation - startStation;
+
+        var deltaAz = endAzRad - startAzRad;
+        if (deltaAz > Math.PI) deltaAz -= 2 * Math.PI;
+        if (deltaAz < -Math.PI) deltaAz += 2 * Math.PI;
+        var sign = (deltaAz < 0) ? -1 : 1;
+        var curvature = 0;
+        if (stdType === 1) {
+          curvature = 0;
+        } else if (stdType === 3) {
+          if (val6 !== 9999 && val6 !== 0) { curvature = sign / val6; }
+        } else if (stdType === 2) {
+          var R = (val5 !== 9999 && val5 !== 0) ? val5 : (val6 !== 9999 && val6 !== 0) ? val6 : 0;
+          if (R !== 0) {
+            // 当圆弧超过 180° (L/R > π) 时，简单的 deltaAz 符号判断会出错
+            // 改用 L/R 与实测方位角差做模 2π 比较来确定曲率符号
+            var TAU = 2 * Math.PI;
+            var expectedAbs = length / R;
+            var rawDelta = endAzRad - startAzRad;
+            var rawMod = ((rawDelta % TAU) + TAU) % TAU;
+            var posMod = ((expectedAbs % TAU) + TAU) % TAU;
+            var negMod = ((-expectedAbs % TAU) + TAU) % TAU;
+            var dPos = Math.min(Math.abs(rawMod - posMod), TAU - Math.abs(rawMod - posMod));
+            var dNeg = Math.min(Math.abs(rawMod - negMod), TAU - Math.abs(rawMod - negMod));
+            curvature = (dPos <= dNeg) ? (1 / R) : (-1 / R);
+          }
+        }
+
+        elements.push({
+          index: elements.length + 1,
+          type: stdType,
+          typeName: PM_TYPE_NAME[stdType] || '未知',
+          startStation: startStation, endStation: endStation, length: length,
+          startX: startX, startY: startY, endX: endX, endY: endY,
+          startAzDeg: radToDeg(startAzRad),
+          endAzDeg: radToDeg(endAzRad),
+          curvature: curvature
+        });
+      } else {
+        // JD分隔行（6字段）或其他非线元行 → 跳过
+        idx++;
+      }
+    }
+
+    return { header: header, elementCount: elements.length, globalStartStation: globalStartStation, elements: elements };
+  }
+
+  function formatOutputPM(parsed) {
+    var lines = [];
+    lines.push('# 纬地 .pm 文件解析结果');
+    lines.push('# 文件标识: ' + parsed.header);
+    lines.push('# 线元数量: ' + parsed.elementCount);
+    lines.push('# 全局起始桩号: ' + parsed.globalStartStation);
+    lines.push('#');
+    lines.push('# 序号, 类型(1=直线/2=圆曲线/3=缓和曲线), 起始桩号, 终点桩号, 长度, 起点X, 起点Y, 起始方位角(度), 曲率k(1/m)');
+    lines.push('#');
+    for (var i = 0; i < parsed.elements.length; i++) {
+      var e = parsed.elements[i];
+      lines.push([
+        e.index, e.type,
+        formatStation(e.startStation), formatStation(e.endStation),
+        e.length.toFixed(3), e.startX.toFixed(3), e.startY.toFixed(3),
+        e.startAzDeg.toFixed(3), e.curvature.toFixed(6)
+      ].join(', '));
+    }
+    return lines.join('\n');
+  }
+
+  // ================================================================
+  //  ZDM 原始文件解析器（from zdm_parser.js）
+  // ================================================================
+  function parseZdmFile(content) {
+    var lines = content.split(/\r?\n/).filter(function(l) { return l.trim() !== ''; });
+
+    var header = lines[0].trim();
+    if (!header.includes('HINTCAD') || !header.includes('ZDM')) {
+      throw new Error('不是有效的纬地 .zdm 文件（文件头标识不匹配）');
+    }
+
+    var pointCount = parseInt(lines[1].trim());
+    if (!Number.isFinite(pointCount) || pointCount < 2) {
+      throw new Error('变坡点数量无效（至少需要2个）');
+    }
+
+    var points = [];
+    for (var i = 0; i < pointCount; i++) {
+      var tokens = lines[2 + i].trim().split(/\s+/);
+      var station = parseFloat(tokens[0]);
+      var elevation = parseFloat(tokens[1]);
+      var radius = parseFloat(tokens[2]);
+      if (![station, elevation, radius].every(Number.isFinite)) {
+        throw new Error('第' + (i + 1) + '个变坡点数据无效: ' + lines[2 + i]);
+      }
+      points.push({ station: station, elevation: elevation, radius: radius });
+    }
+
+    return { header: header, pointCount: pointCount, points: points };
+  }
+
+  function formatOutputZDM(parsed) {
+    var lines = [];
+    lines.push('# 纬地 .zdm 文件解析结果');
+    lines.push('# 文件标识: ' + parsed.header);
+    lines.push('# 变坡点数量: ' + parsed.pointCount);
+    lines.push('#');
+    lines.push('# 格式: 桩号 高程 竖曲线半径');
+    lines.push('#');
+    lines.push(parsed.pointCount.toString());
+    for (var i = 0; i < parsed.points.length; i++) {
+      var p = parsed.points[i];
+      lines.push(
+        formatStation(p.station) + '  ' +
+        p.elevation.toFixed(3) + '  ' +
+        p.radius.toFixed(0)
+      );
+    }
+    return lines.join('\n');
+  }
+
+  // ================================================================
+  //  SUP 原始文件解析器（from sup_parser.js）
+  // ================================================================
+  function interpolate9999(points, field) {
+    var THRESHOLD = 9000;
+    var defined = [];
+    for (var i = 0; i < points.length; i++) {
+      if (Math.abs(points[i][field]) < THRESHOLD) {
+        defined.push({ station: points[i].station, value: points[i][field] });
+      }
+    }
+    if (defined.length === 0) {
+      for (var j = 0; j < points.length; j++) points[j][field] = 0;
+      return;
+    }
+    for (var pi = 0; pi < points.length; pi++) {
+      var pt = points[pi];
+      if (Math.abs(pt[field]) < THRESHOLD) continue;
+      var station = pt.station;
+      var before = null, after = null;
+      for (var di = 0; di < defined.length; di++) {
+        if (defined[di].station <= station + 1e-9) before = defined[di];
+      }
+      for (var di2 = 0; di2 < defined.length; di2++) {
+        if (defined[di2].station >= station - 1e-9) { after = defined[di2]; break; }
+      }
+      if (before && after && Math.abs(before.station - after.station) > 1e-9) {
+        var t = (station - before.station) / (after.station - before.station);
+        pt[field] = before.value + t * (after.value - before.value);
+      } else if (before) {
+        pt[field] = before.value;
+      } else if (after) {
+        pt[field] = after.value;
+      }
+    }
+  }
+
+  function parseSupFile(content) {
+    var lines = content.split(/\r?\n/).filter(function(l) { return l.trim() !== ''; });
+
+    var header = lines[0].trim();
+    if (!header.includes('HINTCAD') || !header.includes('SUP')) {
+      throw new Error('不是有效的纬地 .sup 文件（文件头标识不匹配）');
+    }
+
+    var points = [];
+    for (var i = 1; i < lines.length; i++) {
+      var parts = lines[i].trim().split(/\s+/);
+      if (parts.length < 7) continue;
+      var vals = parts.map(Number);
+      if (vals.some(function(v) { return !Number.isFinite(v); })) continue;
+      points.push({
+        leftLane: vals[2],
+        station: vals[3],
+        rightLane: vals[4]
+      });
+    }
+
+    if (points.length < 2) throw new Error('控制点数量不足（至少需要 2 个）');
+    points.sort(function(a, b) { return a.station - b.station; });
+
+    interpolate9999(points, 'leftLane');
+    interpolate9999(points, 'rightLane');
+
+    var rawSegs = [];
+    for (var i2 = 0; i2 < points.length - 1; i2++) {
+      var p0 = points[i2], p1 = points[i2 + 1];
+      var segLen = p1.station - p0.station;
+      if (segLen < 1e-9) continue;
+      var leftChange = Math.abs(p1.leftLane - p0.leftLane);
+      var rightChange = Math.abs(p1.rightLane - p0.rightLane);
+      var isConstant = leftChange < 0.01 && rightChange < 0.01;
+      var gradRate = 0;
+      if (!isConstant) {
+        gradRate = Math.max(leftChange, rightChange) / segLen / 100;
+      }
+      rawSegs.push({
+        L0: p0.station, L1: p1.station,
+        leftEnd: p1.leftLane, rightEnd: p1.rightLane,
+        gradRate: gradRate, isConstant: isConstant
+      });
+    }
+
+    var segments = [];
+    for (var si = 0; si < rawSegs.length; si++) {
+      var seg = rawSegs[si];
+      var prev = segments[segments.length - 1];
+      if (seg.isConstant && prev && prev.isConstant
+          && Math.abs(prev.leftEnd - seg.leftEnd) < 0.01
+          && Math.abs(prev.rightEnd - seg.rightEnd) < 0.01) {
+        prev.L1 = seg.L1;
+      } else {
+        segments.push({ L0: seg.L0, L1: seg.L1, leftEnd: seg.leftEnd, rightEnd: seg.rightEnd, gradRate: seg.gradRate, isConstant: seg.isConstant });
+      }
+    }
+
+    return { header: header, pointCount: points.length, segments: segments };
+  }
+
+  function formatOutputSUP(parsed) {
+    var lines = [];
+    lines.push('# 纬地 .sup 文件解析结果');
+    lines.push('# 文件标识: ' + parsed.header);
+    lines.push('# 控制点数量: ' + parsed.pointCount);
+    lines.push('#');
+    lines.push('# 序号, 起始桩号, 终点桩号, 旋转轴, 左行车道超高(%), 右行车道超高(%), 渐变率');
+    lines.push('# 注: 左/右超高为段末值; gradRate=0 为常值段, gradRate!=0 为渐变段（起点值取前段末值）');
+    lines.push('#');
+    for (var i = 0; i < parsed.segments.length; i++) {
+      var s = parsed.segments[i];
+      lines.push([
+        i + 1,
+        formatStation(s.L0), formatStation(s.L1),
+        0, s.leftEnd.toFixed(1), s.rightEnd.toFixed(1),
+        s.gradRate.toFixed(6)
+      ].join(', '));
+    }
+    return lines.join('\n');
+  }
+
+  // ================================================================
+  //  标准格式解析 + 求解器（from 三维道路中心线计算程序.js）
+  // ================================================================
+  function parsePM(pmText) {
+    var lines = cleanLines(pmText);
+    var elemsRaw = [];
+    for (var li = 0; li < lines.length; li++) {
+      var parts = lines[li].split(/[\s,]+/).filter(Boolean);
+      if (parts.length < 9) continue;
+      var id = Number(parts[0]), type = Number(parts[1]);
+      var L0 = parseStation(parts[2]), L1 = parseStation(parts[3]);
+      var L_len = Number(parts[4]);
+      var X0 = Number(parts[5]), Y0 = Number(parts[6]);
+      var alpha0 = Number(parts[7]), last = Number(parts[8]);
+      if (![1,2,3].includes(type)) continue;
+      if (![id,L0,L1,L_len,X0,Y0,alpha0,last].every(function(n){ return Number.isFinite(n); })) continue;
+      elemsRaw.push({ id:id, type:type, L0:L0, L1:L1, L_len:L_len, X0:X0, Y0:Y0, alpha0:alpha0, last:last });
+    }
+    elemsRaw.sort(function(a,b){ return a.L0 - b.L0; });
+
+    var elems = elemsRaw.map(function(e){ return Object.assign({}, e); });
+    for (var i = 0; i < elems.length; i++) {
+      var e = elems[i];
+      if (e.type === 1) {
+        e.k = 0; e.k0 = 0; e.k1 = 0; e.ck = 0;
+      } else if (e.type === 2) {
+        e.k = e.last; e.k0 = e.last; e.k1 = e.last; e.ck = 0;
+      } else if (e.type === 3) {
+        var k1 = e.last;
+        var k0 = 0;
+        var prev = elems[i - 1];
+        if (prev) {
+          if (prev.type === 2) k0 = prev.k;
+          else if (prev.type === 3) k0 = isFiniteNumber(prev.k1) ? prev.k1 : 0;
+          else k0 = 0;
+        }
+        e.k0 = k0; e.k1 = k1; e.ck = (k1 - k0) / e.L_len; e.k = k0;
+      }
+    }
+    return elems;
+  }
+
+  function simpsonIntegrate(f, s, n) {
+    n = n || 200;
+    if (s === 0) return 0;
+    var N = Math.max(20, n);
+    if (N % 2 === 1) N += 1;
+    var h = s / N;
+    var sum = f(0) + f(s);
+    for (var i = 1; i < N; i++) {
+      var t = i * h;
+      sum += (i % 2 === 0 ? 2 : 4) * f(t);
+    }
+    return (h / 3) * sum;
+  }
+
+  function solvePlanarAtStation(L, lineElems) {
+    var e = null;
+    for (var i = 0; i < lineElems.length; i++) {
+      if (L >= lineElems[i].L0 - 1e-9 && L <= lineElems[i].L1 + 1e-9) { e = lineElems[i]; break; }
+    }
+    if (!e) throw new Error('桩号 ' + L.toFixed(3) + ' 超出平面范围');
+
+    var s = L - e.L0;
+    var a0 = degToRad(e.alpha0);
+
+    if (e.type === 1) {
+      return { X: e.X0 + s * Math.cos(a0), Y: e.Y0 + s * Math.sin(a0), azimuthRad: a0 };
+    }
+    if (e.type === 2) {
+      var k = e.k;
+      if (Math.abs(k) < 1e-12) {
+        return { X: e.X0 + s * Math.cos(a0), Y: e.Y0 + s * Math.sin(a0), azimuthRad: a0 };
+      }
+      var az = a0 + s * k;
+      return { X: e.X0 + (Math.sin(az) - Math.sin(a0)) / k, Y: e.Y0 + (-Math.cos(az) + Math.cos(a0)) / k, azimuthRad: az };
+    }
+    // 缓和曲线
+    var k0 = e.k0, ck = e.ck;
+    var azimuthRad = a0 + k0 * s + 0.5 * ck * s * s;
+    var fx = function(t) { return Math.cos(a0 + k0 * t + 0.5 * ck * t * t); };
+    var fy = function(t) { return Math.sin(a0 + k0 * t + 0.5 * ck * t * t); };
+    var dX = simpsonIntegrate(fx, s, 400);
+    var dY = simpsonIntegrate(fy, s, 400);
+    return { X: e.X0 + dX, Y: e.Y0 + dY, azimuthRad: azimuthRad };
+  }
+
+  function parseZDM(zdmText) {
+    var lines = cleanLines(zdmText);
+    var idx = 0;
+    var N = Number(lines[0]);
+    if (Number.isFinite(N) && N > 0 && lines.length >= N + 1) { idx = 1; }
+    else { N = lines.length; idx = 0; }
+
+    var pts = [];
+    for (var i = idx; i < lines.length; i++) {
+      var parts = lines[i].split(/[\s,]+/).filter(Boolean);
+      if (parts.length < 3) continue;
+      var L = parseStation(parts[0]), Z = Number(parts[1]), Rv = Number(parts[2]);
+      if (![L, Z, Rv].every(Number.isFinite)) continue;
+      pts.push({ L: L, Z: Z, Rv: Rv });
+    }
+    pts.sort(function(a,b){ return a.L - b.L; });
+    if (pts.length < 2) throw new Error('zdm 至少需要 2 个变坡点');
+
+    var g = [];
+    for (var i2 = 0; i2 < pts.length - 1; i2++) {
+      var dL = pts[i2 + 1].L - pts[i2].L;
+      if (dL <= 0) throw new Error('zdm 桩号必须递增');
+      g[i2] = (pts[i2 + 1].Z - pts[i2].Z) / dL;
+    }
+    g[pts.length - 1] = g[pts.length - 2];
+
+    var curves = [];
+    for (var i3 = 1; i3 < pts.length - 1; i3++) {
+      var Rv = pts[i3].Rv;
+      if (!(Rv > 0)) continue;
+      var g1 = g[i3 - 1], g2 = g[i3];
+      var A = g2 - g1;
+      var Lv = Rv * Math.abs(A);
+      if (Lv <= 0) continue;
+      var T = Lv / 2;
+      var VPI = pts[i3].L;
+      var BVC = VPI - T, EVC = VPI + T;
+      var Z_VPI = pts[i3].Z;
+      var Z_BVC = Z_VPI - g1 * T;
+      curves.push({ index: i3, VPI:VPI, Z_VPI:Z_VPI, Rv:Rv, g1:g1, g2:g2, A:A, Lv:Lv, T:T, BVC:BVC, EVC:EVC, Z_BVC:Z_BVC });
+    }
+    return { pts: pts, g: g, curves: curves };
+  }
+
+  function solveVerticalAtStation(L, zdmModel) {
+    var pts = zdmModel.pts, g = zdmModel.g, curves = zdmModel.curves;
+    for (var ci = 0; ci < curves.length; ci++) {
+      var c = curves[ci];
+      if (L >= c.BVC - 1e-9 && L <= c.EVC + 1e-9) {
+        var x = L - c.BVC;
+        var Z = c.Z_BVC + c.g1 * x + (c.A / (2 * c.Lv)) * x * x;
+        var grade = c.g1 + (c.A / c.Lv) * x;
+        return { Z: Z, grade: grade };
+      }
+    }
+    var iSeg = pts.length - 2;
+    for (var i = 0; i < pts.length - 1; i++) {
+      if (L >= pts[i].L - 1e-9 && L <= pts[i + 1].L + 1e-9) { iSeg = i; break; }
+    }
+    var p0 = pts[iSeg];
+    var grade2 = g[iSeg];
+    var Z2 = p0.Z + (L - p0.L) * grade2;
+    return { Z: Z2, grade: grade2 };
+  }
+
+  function parseSUP(supText) {
+    var lines = cleanLines(supText);
+    var segs = [];
+    for (var li = 0; li < lines.length; li++) {
+      var parts = lines[li].split(/[\s,]+/).filter(Boolean);
+      if (parts.length < 7) continue;
+      var id = Number(parts[0]), L0 = parseStation(parts[1]), L1 = parseStation(parts[2]);
+      var axis = Number(parts[3]), leftPct = Number(parts[4]), rightPct = Number(parts[5]);
+      var gradRate = Number(parts[6]);
+      if (![id,L0,L1,axis,leftPct,rightPct,gradRate].every(Number.isFinite)) continue;
+      segs.push({ id:id, L0:L0, L1:L1, axis:axis, left: leftPct/100, right: rightPct/100, gradRate: gradRate });
+    }
+    segs.sort(function(a,b){ return a.L0 - b.L0; });
+
+    for (var i = 0; i < segs.length; i++) {
+      var cur = segs[i], prev = segs[i - 1];
+      if (Math.abs(cur.gradRate) < 1e-12) {
+        cur.startLeft = cur.left; cur.startRight = cur.right;
+      } else {
+        cur.startLeft = prev ? prev.endLeft : 0;
+        cur.startRight = prev ? prev.endRight : 0;
+      }
+      cur.endLeft = cur.left; cur.endRight = cur.right;
+    }
+    return segs;
+  }
+
+  function solveSuperelevationAtStation(L, supSegs) {
+    var seg = null;
+    for (var i = 0; i < supSegs.length; i++) {
+      if (L >= supSegs[i].L0 - 1e-9 && L <= supSegs[i].L1 + 1e-9) { seg = supSegs[i]; break; }
+    }
+    if (!seg) return { crossSlope: 0 };
+    var t = (L - seg.L0) / (seg.L1 - seg.L0);
+    var right = seg.startRight + (seg.endRight - seg.startRight) * clamp(t, 0, 1);
+    return { crossSlope: right };
+  }
+
+  function buildSolver(opts) {
+    var lineElems = parsePM(opts.pmText);
+    var zdmModel = parseZDM(opts.zdmText);
+    var supSegs = parseSUP(opts.supText);
+
+    function solveAtStation(L) {
+      var planar = solvePlanarAtStation(L, lineElems);
+      var vert = solveVerticalAtStation(L, zdmModel);
+      var sup = solveSuperelevationAtStation(L, supSegs);
+      var azimuthDeg = radToDeg(planar.azimuthRad);
+      var gradeDeg = radToDeg(Math.atan(vert.grade));
+      var crossDeg = radToDeg(Math.atan(sup.crossSlope));
+      var compositeSlope = Math.sqrt(vert.grade * vert.grade + sup.crossSlope * sup.crossSlope);
+      var tx0 = Math.cos(planar.azimuthRad), ty0 = Math.sin(planar.azimuthRad), tz0 = vert.grade;
+      var len = Math.sqrt(tx0*tx0 + ty0*ty0 + tz0*tz0) || 1;
+      return {
+        L: L, X: planar.X, Y: planar.Y, Z: vert.Z,
+        azimuthDeg: azimuthDeg, gradeDeg: gradeDeg, crossDeg: crossDeg,
+        compositeSlope: compositeSlope, grade: vert.grade, crossSlope: sup.crossSlope,
+        tangent: { x: tx0/len, y: ty0/len, z: tz0/len }
+      };
+    }
+
+    function sampleAlignment(L0, L1, step) {
+      step = step || 10;
+      if (!(step > 0)) throw new Error('step 必须 > 0');
+      var out = [];
+      for (var L = L0; L <= L1 + 1e-9; L += step) { out.push(solveAtStation(L)); }
+      if (out.length === 0 || Math.abs(out[out.length - 1].L - L1) > 1e-6) { out.push(solveAtStation(L1)); }
+      return out;
+    }
+
+    return { solveAtStation: solveAtStation, sampleAlignment: sampleAlignment, lineElems: lineElems, zdmModel: zdmModel, supSegs: supSegs };
+  }
+
+  function toCSV(points) {
+    var header = ['L','X','Y','Z','azimuthDeg','gradeDeg','crossDeg','compositeSlope','grade','crossSlope','tx','ty','tz'].join(',');
+    var rows = points.map(function(p) {
+      return [
+        p.L.toFixed(3), p.X.toFixed(3), p.Y.toFixed(3), p.Z.toFixed(3),
+        p.azimuthDeg.toFixed(6), p.gradeDeg.toFixed(6), p.crossDeg.toFixed(6),
+        p.compositeSlope.toFixed(6), p.grade.toFixed(6), p.crossSlope.toFixed(6),
+        p.tangent.x.toFixed(9), p.tangent.y.toFixed(9), p.tangent.z.toFixed(9)
+      ].join(',');
+    });
+    return [header].concat(rows).join('\n');
+  }
+
+  // ---- Public API ----
+  return {
+    parseStation: parseStation,
+    formatStation: formatStation,
+    parsePmFile: parsePmFile,
+    formatOutputPM: formatOutputPM,
+    parseZdmFile: parseZdmFile,
+    formatOutputZDM: formatOutputZDM,
+    parseSupFile: parseSupFile,
+    formatOutputSUP: formatOutputSUP,
+    buildSolver: buildSolver,
+    toCSV: toCSV
+  };
+})();
+
+// ================================================================
+//  内嵌示例原始数据
+// ================================================================
+var SAMPLE_PM = "HINTCAD5.83_PM_SHUJU_PM\n         5\tNULL\tNULL\t0.000000\n         1\t0.0000\t6.252194703415\t0.000000000000\t41801.83399000\t36973.58929000\n         1\t0.000000\t36.39140501\t0.00000000\t9999.00000000\t9999.00000000\t         1\n41801.83399000\t36973.58929000\t41820.02095547\t36973.02548445\t41838.20792094\t36972.46167890\t0.00000000\t0.00000000\n0.00000000\t36.39140501\t6.252194703415\t6.252194703415\n         1\t0.000000\t-35.00000000\t43.47413024\t9999.00000000\t54.00000000\t        21\n41838.20792094\t36972.46167890\t41861.65965448\t36971.73466276\t41872.94176615\t36975.13931009\t41857.34086496\t37026.83662029\n36.39140501\t71.39140501\t6.252194703415\t0.293083470331\n         1\t0.000000\t-50.30392997\t0.00000000\t54.00000000\t54.00000000\t         3\n41872.94176615\t36975.13931010\t41898.92818123\t36982.98133307\t41908.13774627\t37008.51513429\t41857.34086496\t37026.83662030\n71.39140501\t121.69533498\t0.293083470309\t1.224637729013\n         1\t0.000000\t-35.00000000\t43.47413024\t54.00000000\t9999.00000000\t        22\n41908.13774626\t37008.51513428\t41912.13611775\t37019.60074174\t41912.65424481\t37043.05801999\t0.00000000\t0.00000000\n121.69533498\t156.69533498\t1.224637728940\t1.548711803035\n         1\t0.000000\t22.44628361\t0.00000000\t9999.00000000\t9999.00000000\t         1\n41912.65424481\t37043.05801999\t41912.90208240\t37054.27842500\t41913.14992000\t37065.49883000\t0.00000000\t0.00000000\n156.69533498\t179.14161859\t1.548711803014\t1.548711803014";
+
+var SAMPLE_ZDM = "HINTCAD5.83_ZDM_SHUJU\n\t         3\n   -90.000\t9.15160000\t0.00000000\t     0.000\t0.00000000\n    40.000\t14.09170000\t1200.00000000\t     0.000\t0.00000000\n   179.142\t11.27300000\t0.00000000\t     0.000\t0.00000000";
+
+var SAMPLE_SUP = "HINTCAD5.83_SUP_SHUJU\n\t     -3.00\t     -2.00\t     -2.00\t     0.000\t     -2.00\t     -2.00\t     -3.00\n   9999.00\t   9999.00\t   9999.00\t    35.391\t   9999.00\t   9999.00\t     -3.00\n     -3.00\t     -2.00\t     -2.00\t    36.391\t     -2.00\t     -2.00\t     -2.00\n   9999.00\t   9999.00\t   9999.00\t    49.119\t     -2.00\t     -2.00\t     -2.00\n     -3.00\t      9.00\t      9.00\t    71.391\t     -9.00\t     -9.00\t     -9.00\n     -3.00\t      9.00\t      9.00\t   121.695\t     -9.00\t     -9.00\t     -9.00\n   9999.00\t   9999.00\t   9999.00\t   143.968\t     -2.00\t     -2.00\t     -2.00\n     -3.00\t     -2.00\t     -2.00\t   156.695\t     -2.00\t     -2.00\t     -2.00\n   9999.00\t   9999.00\t   9999.00\t   157.695\t   9999.00\t   9999.00\t     -3.00\n     -3.00\t     -2.00\t     -2.00\t   179.142\t     -2.00\t     -2.00\t     -3.00";
+
+// ================================================================
+//  UI State
+// ================================================================
+var rawData = { pm: null, zdm: null, sup: null };         // 原始文件内容
+var parsedRaw = { pm: null, zdm: null, sup: null };       // 原始文件解析结果
+var standardText = { pm: '', zdm: '', sup: '' };          // 标准格式文本
+var currentSolver = null;                                  // 当前求解器
+var currentPoints = null;                                  // 当前采样点
+
+// ================================================================
+//  文件编码处理
+// ================================================================
+function readFileContent(file) {
+  return new Promise(function(resolve, reject) {
+    // 先尝试 UTF-8
+    var reader = new FileReader();
+    reader.onload = function() {
+      var text = reader.result;
+      // 检查是否有乱码（简单启发式：如果包含替换字符）
+      if (text.indexOf('\uFFFD') >= 0) {
+        // 回退到 GBK
+        var reader2 = new FileReader();
+        reader2.onload = function() { resolve(reader2.result); };
+        reader2.onerror = function() { reject(new Error('文件读取失败')); };
+        reader2.readAsText(file, 'GBK');
+      } else {
+        resolve(text);
+      }
+    };
+    reader.onerror = function() { reject(new Error('文件读取失败')); };
+    reader.readAsText(file, 'UTF-8');
+  });
+}
+
+// ================================================================
+//  文件上传处理
+// ================================================================
+function handleFileSelect(input, type) {
+  if (!input.files || !input.files[0]) return;
+  loadFile(input.files[0], type);
+}
+
+function handleDrop(event, type) {
+  event.preventDefault();
+  var files = event.dataTransfer.files;
+  if (files && files[0]) loadFile(files[0], type);
+}
+
+function loadFile(file, type) {
+  var card = document.getElementById('card-' + type);
+  var info = document.getElementById(type + '-info');
+  var err = document.getElementById(type + '-error');
+
+  readFileContent(file).then(function(text) {
+    rawData[type] = text;
+    card.className = 'upload-card success';
+    info.textContent = file.name + ' (' + text.length + ' 字符)';
+    err.textContent = '';
+    checkParseReady();
+  }).catch(function(e) {
+    card.className = 'upload-card error';
+    info.textContent = '';
+    err.textContent = e.message;
+  });
+}
+
+function loadSampleData() {
+  rawData.pm = SAMPLE_PM;
+  rawData.zdm = SAMPLE_ZDM;
+  rawData.sup = SAMPLE_SUP;
+
+  var types = ['pm', 'zdm', 'sup'];
+  var names = ['PB.pm', 'PB.ZDM', 'PB.sup'];
+  for (var i = 0; i < types.length; i++) {
+    var card = document.getElementById('card-' + types[i]);
+    var info = document.getElementById(types[i] + '-info');
+    var err = document.getElementById(types[i] + '-error');
+    card.className = 'upload-card success';
+    info.textContent = names[i] + ' (示例数据)';
+    err.textContent = '';
+  }
+  checkParseReady();
+  // 自动触发解析
+  parseAllData();
+}
+
+function checkParseReady() {
+  document.getElementById('btn-parse').disabled = !(rawData.pm && rawData.zdm && rawData.sup);
+}
+
+// ================================================================
+//  步骤指示器
+// ================================================================
+function updateSteps(active) {
+  for (var i = 1; i <= 4; i++) {
+    var el = document.getElementById('step' + i);
+    el.className = 'step-item' + (i < active ? ' done' : (i === active ? ' active' : ''));
+  }
+}
+
+// ================================================================
+//  解析全部数据
+// ================================================================
+function parseAllData() {
+  try {
+    // 解析原始文件
+    parsedRaw.pm = RoadCalc.parsePmFile(rawData.pm);
+    parsedRaw.zdm = RoadCalc.parseZdmFile(rawData.zdm);
+    parsedRaw.sup = RoadCalc.parseSupFile(rawData.sup);
+
+    // 生成标准格式文本
+    standardText.pm = RoadCalc.formatOutputPM(parsedRaw.pm);
+    standardText.zdm = RoadCalc.formatOutputZDM(parsedRaw.zdm);
+    standardText.sup = RoadCalc.formatOutputSUP(parsedRaw.sup);
+
+    // 渲染解析结果
+    renderPMTable(parsedRaw.pm);
+    renderZDMTable(parsedRaw.zdm);
+    renderSUPTable(parsedRaw.sup);
+
+    document.getElementById('pm-text-output').textContent = standardText.pm;
+    document.getElementById('zdm-text-output').textContent = standardText.zdm;
+    document.getElementById('sup-text-output').textContent = standardText.sup;
+
+    // 显示解析结果区
+    document.getElementById('sec-results').style.display = '';
+    document.getElementById('sec-calc').style.display = '';
+    document.getElementById('sec-query').style.display = '';
+    updateSteps(2);
+
+    // 自动填充里程范围
+    var pmElems = parsedRaw.pm.elements;
+    if (pmElems.length > 0) {
+      document.getElementById('calc-start').value = RoadCalc.formatStation(pmElems[0].startStation);
+      document.getElementById('calc-end').value = RoadCalc.formatStation(pmElems[pmElems.length - 1].endStation);
+    }
+
+  } catch (e) {
+    alert('解析失败: ' + e.message);
+  }
+}
+
+// ================================================================
+//  渲染表格
+// ================================================================
+function renderPMTable(parsed) {
+  var typeBadge = function(t, name) {
+    var cls = t === 1 ? 'type-line' : (t === 2 ? 'type-circle' : 'type-spiral');
+    return '<span class="type-badge ' + cls + '">' + t + ' ' + name + '</span>';
+  };
+
+  var html = '<table><thead><tr>' +
+    '<th>序号</th><th>类型</th><th>起始桩号</th><th>终点桩号</th><th>长度(m)</th>' +
+    '<th>起点X</th><th>起点Y</th><th>方位角(&deg;)</th><th>曲率k(1/m)</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < parsed.elements.length; i++) {
+    var e = parsed.elements[i];
+    html += '<tr>' +
+      '<td>' + e.index + '</td>' +
+      '<td>' + typeBadge(e.type, e.typeName) + '</td>' +
+      '<td>' + RoadCalc.formatStation(e.startStation) + '</td>' +
+      '<td>' + RoadCalc.formatStation(e.endStation) + '</td>' +
+      '<td>' + e.length.toFixed(3) + '</td>' +
+      '<td>' + e.startX.toFixed(3) + '</td>' +
+      '<td>' + e.startY.toFixed(3) + '</td>' +
+      '<td>' + e.startAzDeg.toFixed(3) + '</td>' +
+      '<td>' + e.curvature.toFixed(6) + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('pm-table-wrap').innerHTML = html;
+}
+
+function renderZDMTable(parsed) {
+  var html = '<table><thead><tr>' +
+    '<th>序号</th><th>桩号</th><th>高程(m)</th><th>竖曲线半径(m)</th>' +
+    '</tr></thead><tbody>';
+  for (var i = 0; i < parsed.points.length; i++) {
+    var p = parsed.points[i];
+    html += '<tr><td>' + (i + 1) + '</td>' +
+      '<td>' + RoadCalc.formatStation(p.station) + '</td>' +
+      '<td>' + p.elevation.toFixed(3) + '</td>' +
+      '<td>' + p.radius.toFixed(0) + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('zdm-table-wrap').innerHTML = html;
+}
+
+function renderSUPTable(parsed) {
+  var html = '<table><thead><tr>' +
+    '<th>序号</th><th>起始桩号</th><th>终点桩号</th><th>旋转轴</th>' +
+    '<th>左超高(%)</th><th>右超高(%)</th><th>渐变率</th>' +
+    '</tr></thead><tbody>';
+  for (var i = 0; i < parsed.segments.length; i++) {
+    var s = parsed.segments[i];
+    html += '<tr><td>' + (i + 1) + '</td>' +
+      '<td>' + RoadCalc.formatStation(s.L0) + '</td>' +
+      '<td>' + RoadCalc.formatStation(s.L1) + '</td>' +
+      '<td>0</td>' +
+      '<td>' + s.leftEnd.toFixed(1) + '</td>' +
+      '<td>' + s.rightEnd.toFixed(1) + '</td>' +
+      '<td>' + s.gradRate.toFixed(6) + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('sup-table-wrap').innerHTML = html;
+}
+
+// ================================================================
+//  三维计算
+// ================================================================
+function runCalculation() {
+  try {
+    var L0 = RoadCalc.parseStation(document.getElementById('calc-start').value);
+    var L1 = RoadCalc.parseStation(document.getElementById('calc-end').value);
+    var step = parseFloat(document.getElementById('calc-step').value) || 10;
+
+    currentSolver = RoadCalc.buildSolver({
+      pmText: standardText.pm,
+      zdmText: standardText.zdm,
+      supText: standardText.sup
+    });
+
+    currentPoints = currentSolver.sampleAlignment(L0, L1, step);
+
+    renderCalcTable(currentPoints);
+    drawPlanChart(currentPoints);
+    drawProfileChart(currentPoints);
+
+    document.getElementById('calc-result-area').style.display = '';
+    document.getElementById('btn-csv').style.display = '';
+    updateSteps(3);
+
+  } catch (e) {
+    alert('计算失败: ' + e.message);
+  }
+}
+
+function renderCalcTable(points) {
+  var html = '<table><thead><tr>' +
+    '<th>里程</th><th>X</th><th>Y</th><th>Z</th>' +
+    '<th>方位角(&deg;)</th><th>纵坡角(&deg;)</th><th>横坡角(&deg;)</th>' +
+    '<th>合成坡度</th><th>纵坡</th><th>横坡</th>' +
+    '<th>tx</th><th>ty</th><th>tz</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < points.length; i++) {
+    var p = points[i];
+    html += '<tr>' +
+      '<td>' + RoadCalc.formatStation(p.L) + '</td>' +
+      '<td>' + p.X.toFixed(3) + '</td>' +
+      '<td>' + p.Y.toFixed(3) + '</td>' +
+      '<td>' + p.Z.toFixed(3) + '</td>' +
+      '<td>' + p.azimuthDeg.toFixed(3) + '</td>' +
+      '<td>' + p.gradeDeg.toFixed(3) + '</td>' +
+      '<td>' + p.crossDeg.toFixed(3) + '</td>' +
+      '<td>' + p.compositeSlope.toFixed(6) + '</td>' +
+      '<td>' + p.grade.toFixed(6) + '</td>' +
+      '<td>' + p.crossSlope.toFixed(6) + '</td>' +
+      '<td>' + p.tangent.x.toFixed(6) + '</td>' +
+      '<td>' + p.tangent.y.toFixed(6) + '</td>' +
+      '<td>' + p.tangent.z.toFixed(6) + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('calc-table-wrap').innerHTML = html;
+}
+
+// ================================================================
+//  Canvas 图表绘制
+// ================================================================
+function drawPlanChart(points, highlightPt) {
+  var canvas = document.getElementById('chart-plan');
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  var W = rect.width, H = rect.height;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (!points || points.length < 2) return;
+
+  // 计算范围
+  var xs = points.map(function(p) { return p.X; });
+  var ys = points.map(function(p) { return p.Y; });
+  var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+  var yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+  var pad = 50;
+
+  var dx = xMax - xMin || 1, dy = yMax - yMin || 1;
+  var scale = Math.min((W - 2*pad) / dx, (H - 2*pad) / dy);
+  var cx = (xMin + xMax) / 2, cy = (yMin + yMax) / 2;
+
+  function tx(x) { return pad + (x - xMin) * scale + ((W - 2*pad) - dx*scale)/2; }
+  function ty(y) { return H - pad - (y - yMin) * scale - ((H - 2*pad) - dy*scale)/2; }
+
+  // 网格
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 0.5;
+  var gridStepX = niceStep(dx, 5), gridStepY = niceStep(dy, 5);
+  for (var gx = Math.ceil(xMin / gridStepX) * gridStepX; gx <= xMax; gx += gridStepX) {
+    ctx.beginPath(); ctx.moveTo(tx(gx), pad); ctx.lineTo(tx(gx), H - pad); ctx.stroke();
+  }
+  for (var gy = Math.ceil(yMin / gridStepY) * gridStepY; gy <= yMax; gy += gridStepY) {
+    ctx.beginPath(); ctx.moveTo(pad, ty(gy)); ctx.lineTo(W - pad, ty(gy)); ctx.stroke();
+  }
+
+  // 坐标轴标签
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  for (var gx2 = Math.ceil(xMin / gridStepX) * gridStepX; gx2 <= xMax; gx2 += gridStepX) {
+    ctx.fillText(gx2.toFixed(0), tx(gx2), H - pad + 14);
+  }
+  ctx.textAlign = 'right';
+  for (var gy2 = Math.ceil(yMin / gridStepY) * gridStepY; gy2 <= yMax; gy2 += gridStepY) {
+    ctx.fillText(gy2.toFixed(0), pad - 6, ty(gy2) + 3);
+  }
+
+  // 线元颜色分配 — 根据类型着色
+  if (parsedRaw.pm && currentSolver) {
+    var elems = parsedRaw.pm.elements;
+    var colors = { 1: '#3b82f6', 2: '#f59e0b', 3: '#8b5cf6' };
+    for (var ei = 0; ei < elems.length; ei++) {
+      var e = elems[ei];
+      ctx.strokeStyle = colors[e.type] || '#3b82f6';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      var started = false;
+      for (var pi = 0; pi < points.length; pi++) {
+        var p = points[pi];
+        if (p.L >= e.startStation - 1e-9 && p.L <= e.endStation + 1e-9) {
+          if (!started) { ctx.moveTo(tx(p.X), ty(p.Y)); started = true; }
+          else ctx.lineTo(tx(p.X), ty(p.Y));
+        }
+      }
+      ctx.stroke();
+    }
+  } else {
+    ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(tx(points[0].X), ty(points[0].Y));
+    for (var i = 1; i < points.length; i++) ctx.lineTo(tx(points[i].X), ty(points[i].Y));
+    ctx.stroke();
+  }
+
+  // 高亮查询点
+  if (highlightPt) {
+    ctx.beginPath();
+    ctx.arc(tx(highlightPt.X), ty(highlightPt.Y), 6, 0, 2 * Math.PI);
+    ctx.fillStyle = '#dc2626';
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  // 图例
+  ctx.fillStyle = '#475569'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+  var legendY = 16;
+  var legendItems = [
+    { color: '#3b82f6', label: '直线' },
+    { color: '#f59e0b', label: '圆曲线' },
+    { color: '#8b5cf6', label: '缓和曲线' }
+  ];
+  for (var li = 0; li < legendItems.length; li++) {
+    var lx = W - 110;
+    ctx.fillStyle = legendItems[li].color;
+    ctx.fillRect(lx, legendY + li * 18, 14, 3);
+    ctx.fillStyle = '#475569';
+    ctx.fillText(legendItems[li].label, lx + 20, legendY + li * 18 + 5);
+  }
+}
+
+function drawProfileChart(points, highlightPt) {
+  var canvas = document.getElementById('chart-profile');
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  var W = rect.width, H = rect.height;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (!points || points.length < 2) return;
+
+  var ls = points.map(function(p) { return p.L; });
+  var zs = points.map(function(p) { return p.Z; });
+  var lMin = Math.min.apply(null, ls), lMax = Math.max.apply(null, ls);
+  var zMin = Math.min.apply(null, zs), zMax = Math.max.apply(null, zs);
+  var pad = 50;
+
+  var dl = lMax - lMin || 1, dz = zMax - zMin || 1;
+
+  function tx(l) { return pad + (l - lMin) / dl * (W - 2*pad); }
+  function ty(z) { return H - pad - (z - zMin) / dz * (H - 2*pad); }
+
+  // 网格
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+  var gridL = niceStep(dl, 5), gridZ = niceStep(dz, 5);
+  for (var gl = Math.ceil(lMin / gridL) * gridL; gl <= lMax; gl += gridL) {
+    ctx.beginPath(); ctx.moveTo(tx(gl), pad); ctx.lineTo(tx(gl), H - pad); ctx.stroke();
+  }
+  for (var gz = Math.ceil(zMin / gridZ) * gridZ; gz <= zMax; gz += gridZ) {
+    ctx.beginPath(); ctx.moveTo(pad, ty(gz)); ctx.lineTo(W - pad, ty(gz)); ctx.stroke();
+  }
+
+  // 标签
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  for (var gl2 = Math.ceil(lMin / gridL) * gridL; gl2 <= lMax; gl2 += gridL) {
+    ctx.fillText(gl2.toFixed(0), tx(gl2), H - pad + 14);
+  }
+  ctx.textAlign = 'right';
+  for (var gz2 = Math.ceil(zMin / gridZ) * gridZ; gz2 <= zMax; gz2 += gridZ) {
+    ctx.fillText(gz2.toFixed(2), pad - 6, ty(gz2) + 3);
+  }
+
+  // 高程线
+  ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(tx(points[0].L), ty(points[0].Z));
+  for (var i = 1; i < points.length; i++) ctx.lineTo(tx(points[i].L), ty(points[i].Z));
+  ctx.stroke();
+
+  // 填充
+  ctx.lineTo(tx(points[points.length - 1].L), ty(zMin));
+  ctx.lineTo(tx(points[0].L), ty(zMin));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(22, 163, 74, 0.08)';
+  ctx.fill();
+
+  // 高亮
+  if (highlightPt) {
+    ctx.beginPath();
+    ctx.arc(tx(highlightPt.L), ty(highlightPt.Z), 6, 0, 2 * Math.PI);
+    ctx.fillStyle = '#dc2626';
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  // 轴标题
+  ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('里程 (m)', W / 2, H - 6);
+  ctx.save();
+  ctx.translate(12, H / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('高程 (m)', 0, 0);
+  ctx.restore();
+}
+
+function niceStep(range, targetTicks) {
+  var rough = range / targetTicks;
+  var mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  var norm = rough / mag;
+  var nice;
+  if (norm <= 1.5) nice = 1;
+  else if (norm <= 3) nice = 2;
+  else if (norm <= 7) nice = 5;
+  else nice = 10;
+  return nice * mag;
+}
+
+// ================================================================
+//  CSV 导出
+// ================================================================
+function exportCSV() {
+  if (!currentPoints) return;
+  var csv = '\uFEFF' + RoadCalc.toCSV(currentPoints); // BOM for Excel
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '三维道路中心线.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ================================================================
+//  里程查询
+// ================================================================
+function runQuery() {
+  var input = document.getElementById('query-station').value.trim();
+  var errEl = document.getElementById('query-error');
+  var resArea = document.getElementById('query-result-area');
+  var grid = document.getElementById('query-result-grid');
+
+  errEl.style.display = 'none';
+  resArea.style.display = 'none';
+
+  if (!input) { errEl.textContent = '请输入桩号'; errEl.style.display = ''; return; }
+  if (!currentSolver) { errEl.textContent = '请先完成三维计算（Step 3）'; errEl.style.display = ''; return; }
+
+  try {
+    var L = RoadCalc.parseStation(input);
+    var result = currentSolver.solveAtStation(L);
+
+    var fields = [
+      { key: '里程', val: RoadCalc.formatStation(result.L) },
+      { key: 'X', val: result.X.toFixed(3) },
+      { key: 'Y', val: result.Y.toFixed(3) },
+      { key: 'Z (高程)', val: result.Z.toFixed(3) },
+      { key: '方位角', val: result.azimuthDeg.toFixed(3) + '\u00B0' },
+      { key: '纵坡角', val: result.gradeDeg.toFixed(3) + '\u00B0' },
+      { key: '横坡角', val: result.crossDeg.toFixed(3) + '\u00B0' },
+      { key: '合成坡度', val: result.compositeSlope.toFixed(6) },
+      { key: '纵坡 (grade)', val: (result.grade * 100).toFixed(3) + '%' },
+      { key: '横坡 (crossSlope)', val: (result.crossSlope * 100).toFixed(3) + '%' },
+      { key: '切向量', val: '(' + result.tangent.x.toFixed(6) + ', ' + result.tangent.y.toFixed(6) + ', ' + result.tangent.z.toFixed(6) + ')' }
+    ];
+
+    var html = '';
+    for (var i = 0; i < fields.length; i++) {
+      html += '<div class="result-card"><div class="rk">' + fields[i].key + '</div><div class="rv">' + fields[i].val + '</div></div>';
+    }
+    grid.innerHTML = html;
+    resArea.style.display = '';
+    updateSteps(4);
+
+    // 高亮点
+    if (currentPoints) {
+      drawPlanChart(currentPoints, result);
+      drawProfileChart(currentPoints, result);
+    }
+
+  } catch (e) {
+    errEl.textContent = '查询失败: ' + e.message;
+    errEl.style.display = '';
+  }
+}
+
+// Enter 键触发查询
+document.getElementById('query-station').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') runQuery();
+});
+</script>
+</body>
+</html>
